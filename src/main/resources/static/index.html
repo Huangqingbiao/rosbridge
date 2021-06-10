@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/html">
+<head>
+	<meta charset="utf-8">
+	<title>ROS导航</title>
+	<meta name="renderer" content="webkit">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+	<link rel="stylesheet" href="layui/css/layui.css"  media="all">
+	<script src="layui/jquery.min.js" charset="utf-8"></script>
+	<script src="layui/layui.js" charset="utf-8"></script>
+	<script src="http://static.robotwebtools.org/EaselJS/current/easeljs.min.js"></script>
+	<script src="http://static.robotwebtools.org/EventEmitter2/current/eventemitter2.min.js"></script>
+	<script src="http://static.robotwebtools.org/roslibjs/current/roslib.js"></script>
+	<script src="http://static.robotwebtools.org/ros2djs/current/ros2d.js"></script>
+	<script src="js/Nav2d.js"></script>
+	<script src="js/navigator/ImageMapClientNav.js"></script>
+	<script src="js/navigator/Navigator.js"></script>
+	<script src="js/navigator/OccupancyGridClientNav.js"></script>
+
+	<script>
+
+		// function init() {
+		// 	// Connect to ROS.
+		// 	var ros = new ROSLIB.Ros({
+		// 		//  url : 'ws://localhost:9090'
+		// 		url : 'ws://192.168.110.129:9090'
+		// 	});
+		//
+		// 	var viewer = new ROS2D.Viewer({
+		// 		divID : 'nav',
+		// 		width : 350,
+		// 		height : 400
+		// 	});
+		//
+		// 	var nav = NAV2D.OccupancyGridClientNav({
+		// 		ros : ros,
+		// 		rootObject : viewer.scene,
+		// 		continuous : true,
+		// 		viewer : viewer,
+		// 		serverName : '/move_base',
+		// 		rootObject : viewer.scene
+		// 	});
+		// }
+
+		$(function(){
+			layui.use('layer', function(){
+				var layer = layui.layer;
+			});
+			layui.use('slider', function(){
+				var $ = layui.$,
+						slider = layui.slider;
+				slider.render({
+					elem: '#speed'
+					,input: true //输入框
+				});
+
+			});
+
+			layui.use('jquery', function () {
+				var $ = layui.jquery;
+				//演示动画开始
+				//可以在这里修改触发动画的事件
+				$('.site-doc-icon .layui-anim').on('click', function(){
+					var othis = $(this), anim = othis.data('anim');
+
+					//停止循环
+					if(othis.hasClass('layui-anim-loop')){
+						return othis.removeClass(anim);
+					}
+					othis.removeClass(anim);
+					setTimeout(function(){
+						othis.addClass(anim);
+					});
+					//恢复渐隐
+					if(anim === 'layui-anim-fadeout'){
+						setTimeout(function(){
+							othis.removeClass(anim);
+						}, 1300);
+					}
+				});
+				//演示动画结束
+			})
+
+
+
+
+		// 连接
+			$('#connection').click(function(){
+
+				if($('#connection').hasClass('layui-btn-primary')) {
+					layer.msg("连接中")
+					// $('#navspan').append("<div class=\"layui-inline\" style=\"margin-top: 20px;\">\n" +
+					// 		"\t\t<label class=\"layui-form-label\">位置</label>\n" +
+					// 		"\t\t<div class=\"layui-input-inline\" style=\"width: 100px;\">\n" +
+					// 		"\t\t  <input type=\"text\" id=\"x\" autocomplete=\"off\" class=\"layui-input\" placeholder=\"X坐标\">\n" +
+					// 		"\t\t</div>\n" +
+					// 		"\t\t<div class=\"layui-input-inline\" style=\"width: 100px;\">\n" +
+					// 		"\t\t  <input type=\"text\" id=\"y\" autocomplete=\"off\" class=\"layui-input\" placeholder=\"Y坐标\">\n" +
+					// 		"\t\t</div>\n" +
+					// 		"\t\t<button id=\"navbtn\" class=\"layui-btn layui-btn-normal\">开始导航</button>\n" +
+					// 		"\t  </div>")
+					$('#connection').removeClass("layui-btn-primary").addClass("layui-btn-danger").text("断开");
+
+
+					var ros = new ROSLIB.Ros({
+						//  url : 'ws://localhost:9090'
+						url : 'ws://192.168.76.128:9091'
+					});
+
+					var viewer = new ROS2D.Viewer({
+						divID : 'nav',
+						width : 1000,
+						height : 1000
+					});
+
+					var nav = NAV2D.OccupancyGridClientNav({
+						ros : ros,
+						rootObject : viewer.scene,
+						continuous : true,
+						viewer : viewer,
+						serverName : '/move_base',
+						rootObject : viewer.scene
+					});
+
+					$.ajax({
+						url : '/rosbridge/rosconnect',
+						type : 'POST',
+						contentType : 'application/json',
+						dataType : 'json',
+						data : {
+
+						},
+						success : function(data) {
+							layer.msg("已连接");
+							var msg = data.msg;
+							// alert(msg);
+							$('#msg').append(msg + "</br>");
+						},
+						error: function (e) {
+							layer.msg("连接失败")
+						}
+					});
+				}else{
+					layer.msg("断开连接")
+					$('#connection').removeClass("layui-btn-danger").addClass("layui-btn-primary").text("连接");
+					$.ajax({
+						url : '/rosbridge/rosdisconnect',
+						type : 'POST',
+						contentType : 'application/json',
+						dataType : 'json',
+						data : {
+
+						},
+						success : function(data) {
+							layer.msg("已断开");
+							var msg = data.msg;
+							// alert(msg);
+							$('#msg').append(msg + "</br>");
+						},
+						error: function (e) {
+							console.log(e)
+						}
+					});
+				}
+			})
+
+			$('#navbtn').click(function(){
+				const x = $('#x').val();
+				const y = $('#y').val();
+				var param = {
+					"x" : x,
+					"y" : y
+				}
+				$.ajax({
+					url: '/rosbridge/nav',
+					type : 'POST',
+					contentType : 'application/json',
+					dataType : 'json',
+					data : JSON.stringify(param),
+					success : function(data) {
+						var msg = data.msg;
+						// alert(msg);
+						$('#msg').append(msg + "</br>");
+
+					},
+					error: function (e) {
+						console.log(e)
+					}
+				});
+			})
+
+			// 向右
+			$('#right').click(function(){
+				const speed = $('#speed').find('.layui-slider-tips').text();
+				 var z = 2.0*speed
+				var param = {
+					"linear" : {
+						"x" : 0.0*speed,
+						"y" : 0.0*speed,
+						"z" : 0.0*speed
+					},
+					"angular" : {
+						"x" : 0.0*speed,
+						"y" : 0.0*speed,
+						"z" : z
+					}
+				}
+				$.ajax({
+					url : '/rosbridge/goright',
+					type : 'POST',
+					contentType : 'application/json',
+					dataType : 'json',
+					data : JSON.stringify(param),
+					success : function(data) {
+						var msg = data.msg;
+						// alert(msg);
+						$('#msg').append(msg + "</br>");
+
+					},
+					error: function (e) {
+						console.log(e)
+					}
+				});
+
+			})
+			//向左
+			$('#left').click(function(){
+				const speed = $('#speed').find('.layui-slider-tips').text();
+				var z = -2.0*speed
+				var param = {
+					"linear" : {
+						"x" : 0.0,
+						"y" : 0.0,
+						"z" : 0.0
+					},
+					"angular" : {
+						"x" : 0.0,
+						"y" : 0.0,
+						"z" : z
+					}
+				}
+				$.ajax({
+					url : '/rosbridge/goleft',
+					type : 'POST',
+					contentType : 'application/json',
+					dataType : 'json',
+					data : JSON.stringify(param),
+					success : function(data) {
+						var msg = data.msg;
+						// alert(msg);
+						$('#msg').append(msg + "</br>");
+					},
+					error: function (e) {
+						console.log(e)
+					}
+				});
+
+			})
+			//向前
+			$('#up').click(function(){
+				const speed = $('#speed').find('.layui-slider-tips').text();
+				var x = 2.0*speed
+				var param = {
+					"linear" : {
+						"x" : x,
+						"y" : 0.0,
+						"z" : 0.0
+					},
+					"angular" : {
+						"x" : 0.0,
+						"y" : 0.0,
+						"z" : 0.0
+					}
+				}
+				$.ajax({
+					url : '/rosbridge/goup',
+					type : 'POST',
+					contentType : 'application/json',
+					dataType : 'json',
+					data : JSON.stringify(param),
+					success : function(data) {
+						var msg = data.msg;
+						// alert(msg);
+						$('#msg').append(msg + "</br>");
+					},
+					error: function (e) {
+						console.log(e)
+					}
+				});
+
+			})
+			// 向后
+			$('#down').click(function(){
+				const speed = $('#speed').find('.layui-slider-tips').text();
+				var x = -2.0*speed
+				var param = {
+					"linear" : {
+						"x" : x,
+						"y" : 0.0,
+						"z" : 0.0
+					},
+					"angular" : {
+						"x" : 0.0,
+						"y" : 0.0,
+						"z" : 0.0
+					}
+				}
+				$.ajax({
+					url : '/rosbridge/godown',
+					type : 'POST',
+					contentType : 'application/json',
+					dataType : 'json',
+					data : JSON.stringify(param),
+					success : function(data) {
+						var msg = data.msg;
+						// alert(msg);
+						$('#msg').append(msg + "</br>");
+					},
+					error: function (e) {
+						console.log(e)
+					}
+				});
+			})
+
+			$('#pause').click(function(){
+				if($('#pause').hasClass('layui-btn-normal')){
+					$('#pause').addClass('layui-btn-danger').removeClass('layui-btn-normal').text('停止');
+					$('#msg').append("成功启动");
+				}else{
+					$('#pause').addClass('layui-btn-normal').removeClass('layui-btn-danger').text('开始');
+					$('#msg').append("已停止");
+				}
+			});
+
+			setInterval(function(){
+				if($('#msg').find('br').length > 10){
+					$('#msg').empty();
+				}
+			},3000)
+		})
+
+	</script>
+</head>
+<body>
+
+<div align="center" class="site-doc-icon site-doc-anim">
+	<button id="connection" class="layui-btn layui-btn-lg layui-btn-primary layui-btn-radius layui-anim" data-anim="layui-anim-scale" style="width: 25rem;margin-top: 30px;">连接</button>
+</div>
+<div>
+	<fieldset class="layui-elem-field layui-field-title" style="margin-top: 30px;">
+		<legend>速度</legend>
+	</fieldset>
+	<div id="speed" class="demo-slider"></div>
+</div>
+<div style="margin-top: 50px;" class="layui-row">
+	
+	<div id="nav" class="layui-col-md9" style="width: 1000px;height: 900px;background-color: #0C0C0C"></div>
+	<div class="layui-col-md2" align="center" style="margin-top: 400px;">
+		<ul class="site-doc-icon site-doc-anim">
+			<li>
+				<div class="layui-anim" data-anim="layui-anim-scale"><button id="up" class="layui-btn" style="width: 70px;height: 60px;"><i class="layui-icon layui-icon-up"></i></button></div>
+			</li>
+		</ul>
+		<div style="margin-top: 20px;margin-bottom: 20px;">
+			  <span class="site-doc-icon site-doc-anim">
+
+
+			      <button id="left" class="layui-btn layui-anim" data-anim="layui-anim-scale" style="width: 60px;height: 70px;"><i class="layui-icon layui-icon-left"></i></button>
+					&nbsp;
+
+				  <button id="pause" class="layui-btn layui-btn-normal layui-anim"  data-anim="layui-anim-scale" style="width: 80px;height: 80px;margin-left: 10px;margin-right: 5px;border-radius: 50%">开始</button>
+
+
+				  <button id="right" class="layui-btn layui-anim" data-anim="layui-anim-scale" style="width: 60px;height: 70px;"><i class="layui-icon layui-icon-right"></i></button>
+
+			  </span>
+		</div>
+		<ul class="site-doc-icon site-doc-anim">
+			<li>
+				<div class="layui-anim" data-anim="layui-anim-scale"><button id="down" class="layui-btn" style="width: 70px;height: 60px;"><i class="layui-icon layui-icon-down"></i></button></div>
+			</li>
+		</ul>
+	</div>
+	<div class="layui-col-md1" style="margin-top: 100px;">
+		<div class="layui-card">
+			<div class="layui-card-header"><h2><b>消息</b></h2></div>
+			<div class="layui-card-body layui-bg-black" id="msg" style="width: 150px;height: 800px;margin-left: 10px;">
+
+			</div>
+		</div>
+	</div>
+	</div>
+
+
+<div id="navspan" style="margin-top: 3px;">
+	 <div class="layui-inline" style="margin-top: 20px;">
+		<label class="layui-form-label">位置:</label>
+		<div class="layui-input-inline" style="width: 100px;">
+		  <input type="text" id="x" autocomplete="off" class="layui-input" placeholder="X坐标">
+		</div>
+		<div class="layui-input-inline" style="width: 100px;">
+		  <input type="text" id="y" autocomplete="off" class="layui-input" placeholder="Y坐标">
+		</div>
+		<button id="navbtn" class="layui-btn layui-btn-normal">开始导航</button>
+	  </div>
+</div>
+<div class="layui-inline" style="margin-top: 20px;">
+	<label class="layui-form-label">随机点导航：</label>
+	<div class="layui-input-inline" style="width: 230px;">
+		<input type="text" class="layui-input" placeholder="">
+	</div>
+	<button id="navbtnA" class="layui-btn layui-btn-normal">开始</button>
+</div>
+<div class="site-demo-button" id="layerDemo" style="position: absolute;bottom: 0;right: 0;">
+	<button type="button" class="layui-btn layui-btn-warm layui-btn-radius" id="prompt">帮助文档</button>
+</div>
+<script>
+	$(function(){
+		layui.use('layer', function(){
+			var layer = layui.layer;
+			layui.use('jquery', function () {
+				var $ = layui.jquery;
+			});
+		});
+		$('#prompt').mouseover(function(){
+			layer.msg('<br style="padding: 50px; line-height: 22px; background-color: #393D49; color: #fff; font-weight: 300;" xmlns="http://www.w3.org/1999/html">' +
+					'一、启动rosbridge项目' +
+					'</br>二、启动ROS相关(gazebo,rviz,节点)' +
+					'</br>三、运行命令：rosrun robot_pose_publisher robot_pose_publisher' +
+					'</br>	roslaunch rosbridge_server rosbridge_tcp.launch' +
+					'</br>	roslaunch rosbridge_server rosbridge_websocket1.launch' +
+					'</br>四、连接并控制机器人' +
+					'</div>', {
+				offset: 'auto',
+				icon: 6,
+				skin: 'layui-layer-lan',
+				title: '命令信息',
+				time: 4000 //2秒关闭（如果不配置，默认是3秒）
+			}, function(){
+
+			});
+		});
+		// 目标点导航
+		$('#navbtnA').click(function () {
+			$.ajax({
+				url : '/rosbridge/goalnav',
+				type : 'POST',
+				contentType : 'application/json',
+				dataType : 'json',
+				data : {},
+				success : function(data) {
+					var msg = data.msg;
+					// alert(msg);
+					$('#msg').append(msg + "</br>");
+				},
+				error: function (e) {
+					console.log(e)
+				}
+			});
+		})
+	})
+</script>
+</body>
+</html>
